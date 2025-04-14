@@ -179,6 +179,7 @@ if(ROS_EDITION STREQUAL "ROS1")
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch_ROS1
   )
 
+
   #---------------------------------------------------------------------------------------
   # end of CMakeList.txt
   #---------------------------------------------------------------------------------------
@@ -330,7 +331,11 @@ else(ROS_EDITION STREQUAL "ROS2")
 
   ament_auto_package(INSTALL_TO_SHARE
     config
-    launch_ROS2
+  )
+
+  install(DIRECTORY 
+    launch
+    DESTINATION share/${PROJECT_NAME}
   )
 
 endif()

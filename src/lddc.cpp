@@ -371,7 +371,7 @@ void Lddc::InitCustomMsg(CustomMsg& livox_msg, const StoragePacket& pkg, uint8_t
 #elif defined BUILDING_ROS2
   livox_msg.header.stamp = rclcpp::Time(timestamp);
 #endif
-
+  livox_msg.points.clear();
   livox_msg.point_num = pkg.points_num;
   if (lds_->lidars_[index].lidar_type == kLivoxLidarType) {
     livox_msg.lidar_id = lds_->lidars_[index].handle;
@@ -384,18 +384,27 @@ void Lddc::InitCustomMsg(CustomMsg& livox_msg, const StoragePacket& pkg, uint8_t
 void Lddc::FillPointsToCustomMsg(CustomMsg& livox_msg, const StoragePacket& pkg) {
   uint32_t points_num = pkg.points_num;
   const std::vector<PointXyzlt>& points = pkg.points;
-  for (uint32_t i = 0; i < points_num; ++i) {
+  std::vector<CustomPoint> custom_points;
+  for (size_t i = 0; i < pkg.points_num; ++i) {
     CustomPoint point;
-    point.x = points[i].x;
-    point.y = points[i].y;
-    point.z = points[i].z;
-    point.reflectivity = points[i].intensity;
-    point.tag = points[i].tag;
-    point.line = points[i].line;
-    point.offset_time = static_cast<uint32_t>(points[i].offset_time - pkg.base_time);
+    point.x = pkg.points[i].x;
+    point.y = pkg.points[i].y;
+    point.z = pkg.points[i].z;
+    point.reflectivity = pkg.points[i].intensity;
+    point.tag = pkg.points[i].tag;
+    point.line = pkg.points[i].line;
+    point.offset_time = static_cast<uint32_t>(pkg.points[i].offset_time - pkg.base_time);
+
+    if (point.x == 0 && point.y == 0 && point.z == 0 && point.reflectivity == 0) {
+      std::cout << "Warning: input point[" << i << "] is all zeros" << std::endl;
+    } 
 
     livox_msg.points.push_back(std::move(point));
+    // custom_points.push_back(std::move(point));
   }
+  // livox_msg.points.resize(pkg.points_num);
+  // livox_msg.points.assign(custom_points.begin(), custom_points.end());
+  //memcpy(livox_msg.points, custom_points, pkg.points_num);
 }
 
 void Lddc::PublishCustomPointData(const CustomMsg& livox_msg, const uint8_t index) {

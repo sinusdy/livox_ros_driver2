@@ -293,6 +293,10 @@ else(ROS_EDITION STREQUAL "ROS2")
     get_target_property(LIVOX_INTERFACES_INCLUDE_DIRECTORIES ${LIVOX_INTERFACE_TARGET} INTERFACE_INCLUDE_DIRECTORIES)
   endif()
 
+  add_executable(livox_repub_node src/livox_repub_node.cpp)
+  target_link_libraries(livox_repub_node ${PCL_LIBRARIES} "${cpp_typesupport_target}")
+  ament_target_dependencies(livox_repub_node rclcpp sensor_msgs pcl_conversions)
+
   # include file direcotry
   target_include_directories(${PROJECT_NAME} PUBLIC
     ${PCL_INCLUDE_DIRS}
@@ -332,6 +336,10 @@ else(ROS_EDITION STREQUAL "ROS2")
   ament_auto_package(INSTALL_TO_SHARE
     config
   )
+
+  install(TARGETS
+    livox_repub_node
+    DESTINATION lib/${PROJECT_NAME})
 
   install(DIRECTORY 
     launch

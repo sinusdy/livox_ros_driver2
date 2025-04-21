@@ -15,7 +15,7 @@ def generate_launch_description():
         executable='livox_repub_node',
         name='livox_repub_node',
         output='screen',
-        parameters=[repub_config]
+        parameters=[repub_config],
         #prefix=['xterm -e gdb -ex run --args'],
         )
     return LaunchDescription([

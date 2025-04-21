@@ -18,6 +18,9 @@ LivoxRepubNode::LivoxRepubNode() : Node("livox_repub_node"), i_counter(0), pcl_m
   this->declare_parameter("publish_rate", 2.0);
   this->get_parameter("publish_rate", publish_rate_);
 
+  this->declare_parameter("pcl_undistort", false);
+  this->get_parameter("pcl_undistort", pcl_undistort_);
+
   livox_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
   pub_pcl_out_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/livox_pcl0", 1);
@@ -30,7 +33,10 @@ LivoxRepubNode::LivoxRepubNode() : Node("livox_repub_node"), i_counter(0), pcl_m
       "/livox/lidar", rclcpp::SensorDataQoS().keep_last(1), std::bind(&LivoxRepubNode::pcl_callback, this, _1));
   }
 
-  //TODO: ADD TIMER BCOS THE RAW POINT CLOUD CALLBACK IS TOO SLOW IN THE FIRST PLACE
+  //TODO: ADD TRANSFORM LISTENER AND BUFFER
+  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+
   pub_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   double pub_interval_time = 1 / publish_rate_;
   RCLCPP_INFO_STREAM(this->get_logger(),
@@ -56,14 +62,37 @@ void LivoxRepubNode::pubTimerCallback() {
         RCLCPP_INFO_STREAM(this->get_logger(), "Inside combining cloud logic");
         for (auto livox_msg : livox_data_) {
           auto time_end = livox_msg->points.back().offset_time;
-
+          Eigen::Affine3d eigen_tf;
+          rclcpp::Time lidar_time(livox_msg->header.stamp);
           for (unsigned int i = 0; i < livox_msg->point_num; ++i) {
             pcl::PointXYZI pt;
-            pt.x = livox_msg->points[i].x;
-            pt.y = livox_msg->points[i].y;
-            pt.z = livox_msg->points[i].z;
+            if (pcl_undistort_) {
+              Eigen::Vector3d original_pt(livox_msg->points[i].x, 
+                                          livox_msg->points[i].y,
+                                          livox_msg->points[i].z);
+              Eigen::Vector3d tf_point = eigen_tf * original_pt;
+              geometry_msgs::msg::TransformStamped tf_stamped;
+              auto offset_duration = rclcpp::Duration(std::chrono::nanoseconds(livox_msg->points[i].offset_time));
+              rclcpp::Time pt_time = lidar_time + offset_duration;
+              try {
+                tf_stamped = tf_buffer_->lookupTransform(
+                odom_frame_,
+                livox_msg->header.frame_id,
+                pt_time,
+                rclcpp::Duration::from_seconds(0.05));
+              } catch (const tf2::TransformException &ex) {
+                RCLCPP_WARN(this->get_logger(), "Transform lookup failed: %s", ex.what());
+              }
+              eigen_tf = tf2::transformToEigen(tf_stamped);
+              pt.x = tf_point.x();
+              pt.y = tf_point.y();
+              pt.z = tf_point.z();
+            } else {
+              pt.x = livox_msg->points[i].x;
+              pt.y = livox_msg->points[i].y;
+              pt.z = livox_msg->points[i].z;
+            }
             pt.intensity = livox_msg->points[i].reflectivity * 0.1f;
-
             pcl_out_->push_back(pt);
           }
         }
@@ -90,8 +119,21 @@ void LivoxRepubNode::pubTimerCallback() {
       pcl_out_ = std::make_shared<pcl::PointCloud<pcl::PointXYZI>>();
       for (auto data : pointcloud_data_) {
         pcl::PointCloud<pcl::PointXYZI> pcl_data;
-        pcl::fromROSMsg(*data, pcl_data);
-
+        if (pcl_undistort_) {
+          geometry_msgs::msg::TransformStamped tf_stamped;
+          try {
+            tf_stamped = tf_buffer_->lookupTransform(
+            odom_frame_,
+            data->header.frame_id,
+            data->header.stamp,
+            rclcpp::Duration::from_seconds(0.05));
+          } catch (const tf2::TransformException &ex) {
+            RCLCPP_WARN(this->get_logger(), "Transform lookup failed: %s", ex.what());
+          }
+          Eigen::Affine3d eigen_tf = tf2::transformToEigen(tf_stamped);
+          pcl::fromROSMsg(*data, pcl_data);
+          pcl::transformPointCloud(pcl_data, pcl_data, eigen_tf);
+        }
         RCLCPP_INFO_STREAM(this->get_logger(), "PCL data length: " << pcl_data.points.size());
         // *pcl_out_ += pcl_data;
         for (auto point : pcl_data) {

@@ -5,12 +5,21 @@
 #include <mutex>
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
+#include <pcl/common/transforms.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <Eigen/Geometry>
+#include <tf2_eigen/tf2_eigen.hpp>
 
 class LivoxRepubNode : public rclcpp::Node {
 public:
   LivoxRepubNode();
 
 private:
+  void pubTimerCallback();
+  void livox_callback(const livox_ros_driver2::msg::CustomMsg::SharedPtr msg);
+  void pcl_callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
   rclcpp::Subscription<livox_ros_driver2::msg::CustomMsg>::SharedPtr sub_livox_;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pcl_sub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_pcl_out_;
@@ -28,7 +37,8 @@ private:
   rclcpp::CallbackGroup::CallbackGroup::SharedPtr livox_cb_group_;
   rclcpp::CallbackGroup::CallbackGroup::SharedPtr pub_cb_group_;
   rclcpp::TimerBase::SharedPtr pub_timer_;
-  void pubTimerCallback();
-  void livox_callback(const livox_ros_driver2::msg::CustomMsg::SharedPtr msg);
-  void pcl_callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
+  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+  std::string odom_frame_;
+  bool pcl_undistort_;
 };

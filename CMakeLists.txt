@@ -228,6 +228,10 @@ else(ROS_EDITION STREQUAL "ROS2")
   find_package(std_msgs REQUIRED)
   find_package(builtin_interfaces REQUIRED)
   find_package(rosidl_default_generators REQUIRED)
+  find_package(geometry_msgs REQUIRED)
+  find_package(tf2_ros REQUIRED)
+  find_package(tf2_eigen REQUIRED)
+  find_package(Eigen3)
 
   # check apr
   find_package(PkgConfig)
@@ -293,12 +297,9 @@ else(ROS_EDITION STREQUAL "ROS2")
     get_target_property(LIVOX_INTERFACES_INCLUDE_DIRECTORIES ${LIVOX_INTERFACE_TARGET} INTERFACE_INCLUDE_DIRECTORIES)
   endif()
 
-  add_executable(livox_repub_node src/livox_repub_node.cpp)
-  target_link_libraries(livox_repub_node ${PCL_LIBRARIES} "${cpp_typesupport_target}")
-  ament_target_dependencies(livox_repub_node rclcpp sensor_msgs pcl_conversions)
-
   # include file direcotry
   target_include_directories(${PROJECT_NAME} PUBLIC
+    ${EIGEN3_INCLUDE_DIR}
     ${PCL_INCLUDE_DIRS}
     ${APR_INCLUDE_DIRS}
     ${LIVOX_LIDAR_SDK_INCLUDE_DIR}
@@ -321,6 +322,10 @@ else(ROS_EDITION STREQUAL "ROS2")
     PLUGIN "livox_ros::DriverNode"
     EXECUTABLE ${PROJECT_NAME}_node
   )
+
+  add_executable(livox_repub_node src/livox_repub_node.cpp)
+  target_link_libraries(livox_repub_node ${PCL_LIBRARIES} "${cpp_typesupport_target}")
+  ament_target_dependencies(livox_repub_node rclcpp sensor_msgs pcl_conversions geometry_msgs tf2_ros tf2_eigen)
 
   if(BUILD_TESTING)
     find_package(ament_lint_auto REQUIRED)
